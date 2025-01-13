@@ -21,13 +21,13 @@ struct foo {
     long dummy[12] = { 0, };
     
     foo() : foo(42) {}
-    foo(int num) : value(num) { ++constructor_cnt; }
-    foo(foo const&) { ++copy_cnt; }
-    foo(foo &&) noexcept { ++move_cnt; }
+    foo(int n) : value(n) { ++constructor_cnt; }
+    foo(foo const& o) : value(o.value) { ++copy_cnt; }
+    foo(foo&& o) noexcept : value(o.value) { ++move_cnt; }
     ~foo() { ++destructor_cnt; }
     
-    foo &operator=(foo const&) { ++assign_cnt; return *this; }
-    foo &operator=(foo &&) { ++move_assign_cnt; return *this; }
+    foo &operator=(foo const& o) { value = o.value; ++assign_cnt; return *this; }
+    foo &operator=(foo&& o) { value = o.value; ++move_assign_cnt; return *this; }
     
     bool operator==(foo const &other) { return value == other.value; }
     bool operator!=(foo const &other) { return value != other.value; }
@@ -37,13 +37,15 @@ struct foo_debug {
     int value;
     
     foo_debug() : foo_debug(42) {}
-    foo_debug(int num) : value(num) { std::cout << "constructor called\n"; }
-    foo_debug(foo const&) { std::cout << "copy constructor called\n"; }
-    foo_debug(foo &&) noexcept { std::cout << "move constructor called\n"; }
+    foo_debug(int n) : value(n) { std::cout << "constructor " << n << " called\n"; }
+    foo_debug(foo_debug const& o) : value(o.value) { std::cout << "copy constructor " << o.value << " called\n"; }
+    foo_debug(foo_debug && o) noexcept : value(o.value) { std::cout << "move constructor " << o.value << " called\n"; }
     ~foo_debug() { std::cout << "destructor called\n"; }
     
-    foo_debug &operator=(foo_debug const&) { std::cout << "assgin operator called\n"; return *this; }
-    foo_debug &operator=(foo_debug &&) { std::cout << "move assign operator called\n"; return *this; }
+    foo_debug &operator=(foo_debug const& o)
+        { value = o.value; std::cout << "assgin operator " << o.value <<" called\n"; return *this; }
+    foo_debug &operator=(foo_debug&& o)
+        { value = o.value; std::cout << "move assign operator " << o.value << " called\n"; return *this; }
     
     bool operator==(foo_debug const &other) { return value == other.value; }
     bool operator!=(foo_debug const &other) { return value != other.value; }
@@ -55,42 +57,47 @@ template <typename T>
 using benchmark_t = std::tuple<std::string, int, void(*)(T&, int)>;
 
 void debug([[maybe_unused]] auto& vec) {
-//    vec.push_back(1);
-//    vec.push_back(2);
-//    
-//    for (std::size_t i = 0; i < 10; ++i) {
-//        vec.resize(i+2);
-//    }
+//    vec.push_back({1});
+//    vec.insert(vec.begin(), {2});
+//    vec.insert(vec.begin(), {3});;
+//    vec.emplace_back(4);
+//    vec.emplace_back(5);
+//    vec.emplace_back(6);
+//    vec.emplace_back(7);
+//    vec.push_back({8});
+//    vec.push_back({9});
+//    vec.push_back({10});
+//    vec.push_back({11});
+//    vec.push_back({12});
+//    vec.push_back({13});
+//    vec.push_back({14});
 }
 
 template <typename T>
-std::array benchmark = {
-    benchmark_t<T>{ {}, 1000,
-        [](auto& vec, [[maybe_unused]] int cnt) -> void { vec.push_back(cnt); }},
-    
+std::array benchmark = {    
     benchmark_t<T>{ "reserve", 10000,
         [](auto& vec, [[maybe_unused]] int cnt) -> void { vec.reserve((std::size_t)cnt); }},
     
-    benchmark_t<T>{ "resize", 100,
-        [](auto& vec, [[maybe_unused]] int cnt) -> void { vec.resize((std::size_t)cnt * 10000); }},
+    benchmark_t<T>{ "resize", 1000,
+        [](auto& vec, [[maybe_unused]] int cnt) -> void { vec.resize((std::size_t)cnt * 1000); }},
     
-    benchmark_t<T> { {}, 1,
-        [](auto& vec, [[maybe_unused]] int cnt) -> void { T temp; vec.swap(temp); }},
+    benchmark_t<T>{ "resize_args", 1000,
+        [](auto& vec, [[maybe_unused]] int cnt) -> void { vec.resize((std::size_t)(cnt + 100) * 1000, {32}); }},
     
     benchmark_t<T>{ "push_back", 1000000,
         [](auto& vec, [[maybe_unused]] int cnt) -> void { vec.push_back({cnt}); }},
     
-    benchmark_t<T>{ "insert", 1000000,
-        [](auto& vec, [[maybe_unused]] int cnt) -> void { vec.insert(vec.begin() + cnt, {42}); }},
+    benchmark_t<T>{ "insert", 1000,
+        [](auto& vec, [[maybe_unused]] int cnt) -> void { vec.insert(vec.begin() + cnt * 2, {42}); }},
     
     benchmark_t<T>{ "modify", 1000000,
-        [](auto& vec, [[maybe_unused]] int cnt) -> void { vec[(std::size_t)cnt].value = cnt * 200; }},
+        [](auto& vec, [[maybe_unused]] int cnt) -> void { vec[(std::size_t) + 1000].value = cnt * 200; }},
     
-    benchmark_t<T>{ "erase", 10000,
+    benchmark_t<T>{ "erase", 1000,
         [](auto& vec, [[maybe_unused]] int cnt) -> void { vec.erase(vec.begin()); }},
     
-    benchmark_t<T>{ {}, 1,
-        [](auto& vec, [[maybe_unused]] int cnt) -> void { vec.resize(10000000); }},
+    benchmark_t<T>{ "emplace_back", 1000000,
+        [](auto& vec, [[maybe_unused]] int cnt) -> void { vec.emplace_back(cnt); }},
     
     benchmark_t<T>{ "at", 100000,
         [](auto& vec, [[maybe_unused]] int cnt) -> void { vec.at((std::size_t)cnt * 3); }}
@@ -163,7 +170,7 @@ auto main() -> int {
     
     for (std::size_t idx = 0; idx < std_vec.size(); ++idx) {
         if (vec[idx] != std_vec[idx]) {
-            std::cout << "ERROR: Element mismatch detected!\n";
+            std::cout << "ERROR: Element mismatch detected in " << idx << std::endl;
             return 0;
         }
     }

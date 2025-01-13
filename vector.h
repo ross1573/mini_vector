@@ -2,13 +2,17 @@
 #define _VECTOR_H
 
 #include <new>
+#include "utility.h"
 
 
 template <typename T>
 class vector {
 public:
     typedef T value_type;
-    typedef T *pointer_type;
+    typedef T* pointer_type;
+    typedef T const* const_pointer_type;
+    typedef T& reference_type;
+    typedef T const& const_reference_type;
     typedef unsigned long size_type;
     
 private:
@@ -18,88 +22,106 @@ private:
     
 public:
     vector();
-    vector(size_type const size);
+    explicit vector(size_type const size);
     vector(vector const &vec);
     vector(vector &&vec);
     ~vector();
     
-    auto push_back(value_type const &value) -> void;
-    auto push_back(value_type &&value) -> void;
-    auto pop_back() -> void;
+    void push_back(value_type const &value);
+    void push_back(value_type &&value);
+    void pop_back();
+    template <typename... Args>
+    reference_type emplace_back(Args&&... args);
     
-    auto insert(value_type *const pos, value_type const &value) -> void;
-    auto insert(value_type *const pos,
-                value_type const *begin, value_type const *end) -> void;
+    void insert(const_pointer_type pos, value_type const& value);
+    void insert(const_pointer_type pos,
+                pointer_type begin, pointer_type end);
     
-    auto erase(value_type *const pos) -> void;
-    auto erase(value_type *const begin, value_type *const end) -> void;
+    void erase(const_pointer_type pos);
+    void erase(const_pointer_type begin, const_pointer_type end);
     
-    auto resize(size_type size) -> void;
-    auto swap(vector& other) -> void;
-    auto clear() -> void;
+    void resize(size_type size);
+    void resize(size_type size, value_type const& value);
+    void swap(vector& other);
+    void clear();
     
-    auto reserve(size_type capacity) -> void;
-    auto empty() const noexcept -> bool;
-    auto size() const noexcept -> decltype(auto);
-    auto capacity() const noexcept -> decltype(auto);
+    void reserve(size_type capacity);
+    bool empty() const noexcept;
+    size_type size() const noexcept;
+    size_type capacity() const noexcept;
     
-    auto data() -> value_type*;
-    auto data() const -> value_type const*;
+    pointer_type data();
+    const_pointer_type data() const;
     
-    auto begin() const -> decltype(auto);
-    auto end() const -> decltype(auto);
-    auto front() -> value_type&;
-    auto back() -> value_type&;
-    auto at(size_type index) -> value_type&;
+    pointer_type begin();
+    pointer_type end();
+    reference_type front();
+    reference_type back();
+    reference_type at(size_type index);
+    const_pointer_type begin() const;
+    const_pointer_type end() const;
+    const_reference_type front() const;
+    const_reference_type back() const;
+    const_reference_type at(size_type index) const;
     
-    auto operator[](size_type index) -> value_type&;
-    auto operator=(vector const &vec) -> decltype(auto);
-    auto operator=(vector &&vec) -> decltype(auto);
+    reference_type operator[](size_type index);
+    const_reference_type operator[](size_type index) const;
+    vector& operator=(vector const &vec);
+    vector& operator=(vector &&vec);
     
 private:
-    [[nodiscard]] auto __allocate(size_t capacity) -> pointer_type;
-    auto __deallocate(value_type *const pos) -> void;
+    [[nodiscard]] pointer_type __allocate(size_type capacity);
+    void __deallocate(const_pointer_type pos);
     
-    auto __construct(value_type *const pos) -> void;
-    auto __construct(value_type *const pos, value_type const &value) -> void;
-    auto __construct(value_type *const pos, value_type &&value) -> void;
-    auto __construct_range(value_type *begin, value_type *end) -> void;
-    auto __construct_range(value_type *dst, 
-                           value_type *begin, value_type *end) -> void;
-    auto __construct_backward(value_type *dst, 
-                              value_type *rbegin, value_type *rend) -> void;
+    template <typename... Args>
+    void __construct(const_pointer_type pos, Args&&... args);
+    template <typename... Args>
+    void __construct_range(const_pointer_type begin, const_pointer_type end, Args&&... args);
     
-    auto __destruct(value_type *pos) -> void;
-    auto __destruct_range(value_type *begin, value_type *end) -> void;
+    void __copy_construct_range(const_pointer_type dst,
+                                const_pointer_type begin, const_pointer_type end);
+    void __move_construct_range(const_pointer_type dst,
+                                pointer_type begin, pointer_type end);
+    void __move_construct_backward(const_pointer_type dst,
+                                   pointer_type rbegin, pointer_type rend);
     
-    auto __copy_range(value_type *dst, 
-                      value_type const *begin, value_type const *end) -> void;
-    auto __move_range(value_type *dst,
-                      value_type *begin, value_type *end) -> void;
-    auto __move_backward(value_type *dst,
-                         value_type *rbegin, value_type *rend) -> void;
+    void __destruct(pointer_type pos);
+    void __destruct_range(pointer_type begin, pointer_type end);
+    
+    void __copy_range(pointer_type dst,
+                      const_pointer_type begin, const_pointer_type end);
+    void __move_range(pointer_type dst,
+                      const_pointer_type begin, const_pointer_type end);
+    void __move_backward(pointer_type dst,
+                         const_pointer_type rbegin, const_pointer_type rend);
 };
 
 
 template <typename T>
 vector<T>::vector() 
-: vector(0)
+    : vector(0)
 {}
 
 template <typename T>
 vector<T>::vector(size_type const size)
-: __arr(__allocate(size)), __size(size), __capacity(size)
+    : __arr(__allocate(size))
+    , __size(size)
+    , __capacity(size)
 {}
 
 template <typename T>
 vector<T>::vector(vector const &vec)
-: __size(vec.__size), __capacity(vec.__capacity), __arr(__allocate()) {
+    : __size(vec.__size)
+    , __capacity(vec.__capacity)
+    , __arr(__allocate()) {
     __copy_range(__arr, vec.begin(), vec.end());
 }
 
 template <typename T>
 vector<T>::vector(vector &&vec)
-: __arr(vec.__arr), __size(vec.__size), __capacity(vec.__capacity) {
+    : __arr(vec.__arr)
+    , __size(vec.__size)
+    , __capacity(vec.__capacity) {
     vec.__size     = 0;
     vec.__capacity = 0;
     vec.__arr      = nullptr;
@@ -113,132 +135,152 @@ vector<T>::~vector() {
 }
 
 template <typename T>
-auto vector<T>::push_back(const value_type &value) -> void {
+void vector<T>::push_back(const value_type &value) {
     if (__size < __capacity) {
         __construct(__arr + __size++, value);
     }
     else {
-        // allocate new array
-        auto new_cap = __capacity == 0 ? 1 : __capacity * 2;
-        auto dst     = __allocate(new_cap);
+        size_type new_cap = __capacity == 0 ? 1 : __capacity * 2;
+        pointer_type new_arr = __allocate(new_cap);
         
-        // memmove
-        __construct(dst + __size + 1, value);
-        __construct_range(dst, begin(), end());
+        pointer_type dst = new_arr + __size;
+        __construct(dst, value); dst -= 1;
+        __move_construct_backward(dst, end() - 1, begin() - 1);
         
-        // delete old
         __destruct_range(begin(), end());
         __deallocate(begin());
         
-        __arr      = dst;
+        __arr      = new_arr;
         __capacity = new_cap;
         ++__size;
     }
 }
 
 template <typename T>
-auto vector<T>::push_back(value_type &&value) -> void {
+void vector<T>::push_back(value_type &&value) {
     if (__size < __capacity) {
-        __construct(__arr + __size++, static_cast<value_type &&>(value));
+        __construct(__arr + __size++, static_cast<value_type&&>(value));
     }
     else {
-        // allocate new array
-        auto new_cap = __capacity == 0 ? 1 : __capacity * 2;
-        auto dst     = __allocate(new_cap);
+        size_type new_cap = __capacity == 0 ? 1 : __capacity * 2;
+        pointer_type new_arr = __allocate(new_cap);
         
-        // memmove
-        __construct(dst + __size + 1, static_cast<value_type &&>(value));
-        __construct_range(dst, begin(), end());
+        pointer_type dst = new_arr + __size;
+        __construct(dst, static_cast<value_type&&>(value)); dst -= 1;
+        __move_construct_backward(dst, end() - 1, begin() - 1);
         
-        // delete old
         __destruct_range(begin(), end());
         __deallocate(begin());
         
-        __arr      = dst;
+        __arr      = new_arr;
         __capacity = new_cap;
         ++__size;
     }
 }
 
 template <typename T>
-auto vector<T>::pop_back() -> void {
+void vector<T>::pop_back() {
     __destruct(__arr + --__size);
 }
 
 template <typename T>
-auto vector<T>::insert(value_type *const pos, value_type const &value) -> void {
+template <typename... Args>
+auto vector<T>::emplace_back(Args&&... args) -> reference_type {
+    if (__size < __capacity) {
+        __construct(__arr + __size++, forward<Args>(args)...);
+    }
+    else {
+        size_type new_cap = __capacity == 0 ? 1 : __capacity * 2;
+        pointer_type new_arr = __allocate(new_cap);
+        
+        pointer_type dst = new_arr + __size;
+        __construct(dst, forward<Args>(args)...); dst -= 1;
+        __move_construct_backward(dst, end() - 1, begin() - 1);
+        
+        __destruct_range(begin(), end());
+        __deallocate(begin());
+        
+        __arr      = new_arr;
+        __capacity = new_cap;
+        ++__size;
+    }
+    
+    return back();
+}
+
+template <typename T>
+void vector<T>::insert(const_pointer_type pos, value_type const &value) {
     if (pos == end()) {
         push_back(value);
     }
     else {
-        insert(pos, &value, &value + 1);
+        pointer_type begin = const_cast<pointer_type>(&value);
+        pointer_type end = begin + 1;
+        
+        insert(pos, begin, end);
     }
 }
 
 template <typename T>
-auto vector<T>::insert(value_type *const pos,
-                       value_type const *begin, value_type const *end) -> void {
-    pointer_type dst = __arr;
+void vector<T>::insert(const_pointer_type pos,
+                       pointer_type begin, pointer_type end) {
+    size_type new_size = size() + size_type(end - begin);
     
-    size_type new_cap  = __capacity;
-    size_type new_size = __size + size_type(end - begin);
-    
-    // get new capacity
-    if (new_size > __capacity) {
-        new_cap = new_size < __capacity * 2 ? __capacity * 2 : new_size;
-        dst     = __allocate(new_cap);
+    if (new_size > capacity()) {
+        size_type new_cap = new_size < capacity() * 2 ? capacity() * 2 : new_size;
+        pointer_type new_arr = __allocate(new_cap);
         
-        // move construct front
-        __construct_range(dst, this->begin(), pos);
-    }
-    
-    // move construct back
-    if (pos < this->end()) {
-        __move_backward(dst + new_size - 1, this->end() - 1, pos - 1);
-    }
-    
-    // construct inserting items
-    __copy_range(dst + size_type(pos - this->begin()), begin, end);
-    
-    // delete temporary only on realloc
-    if (dst != __arr) {
-        __destruct_range(this->begin(), this->end());
+        pointer_type dst = new_arr;
+        pointer_type old_begin = this->begin();
+        pointer_type old_end = this->end();
+        size_type diff = size_type(pos - old_begin);
+        
+        __move_construct_range(dst, old_begin, old_begin + diff); dst += diff;
+        __copy_construct_range(dst, begin, end); dst += size_type(end - begin);
+        __move_construct_range(dst, old_begin + diff, old_end);
+        
+        __destruct_range(old_begin, old_end);
         __deallocate(__arr);
         
-        __arr      = dst;
+        __arr      = new_arr;
         __capacity = new_cap;
+    }
+    else {
+        pointer_type loc = this->begin() + (pos - this->begin());
+        
+        __move_backward(this->begin() + new_size - 1, this->end() - 1, loc - 1);
+        __copy_construct_range(loc, begin, end);
     }
     
     __size = new_size;
 }
 
 template <typename T>
-auto vector<T>::erase(value_type *const pos) -> void {
-    __destruct(pos);
-    __move_range(pos, pos + 1, end());
+void vector<T>::erase(const_pointer_type pos) {
+    pointer_type loc = begin() + (pos - begin());
+    
+    __destruct(loc);
+    __move_range(loc, loc + 1, end());
     --__size;
 }
 
 template <typename T>
-auto vector<T>::erase(value_type *const begin, value_type *const end) -> void {
+void vector<T>::erase(const_pointer_type begin, const_pointer_type end) {
     __destruct_range(begin, end);
     __move_range(begin, end, this->end());
     __size -= (size_type)(end - begin);
 }
 
 template <typename T>
-auto vector<T>::reserve(size_type capacity) -> void {
+void vector<T>::reserve(size_type capacity) {
     if (__capacity >= capacity) {
         return;
     }
     
-    // allocate new array
-    auto dst = __allocate(capacity);
+    pointer_type dst = __allocate(capacity);
     
-    // construct old elements
-    __construct_range(dst, begin(), end());
+    __move_construct_range(dst, begin(), end());
     
-    // delete old
     __destruct_range(begin(), end());
     __deallocate(begin());
     
@@ -247,7 +289,7 @@ auto vector<T>::reserve(size_type capacity) -> void {
 }
 
 template <typename T>
-auto vector<T>::resize(size_type size) -> void {
+void vector<T>::resize(size_type size) {
     if (size == __size) {
         return;
     }
@@ -257,7 +299,7 @@ auto vector<T>::resize(size_type size) -> void {
             auto new_cap = __capacity * 2 > size ? __capacity * 2 : size;
             auto dst = __allocate(new_cap);
             
-            __construct_range(dst, begin(), end());
+            __move_construct_range(dst, begin(), end());
             __construct_range(dst + __size, dst + size);
             
             __destruct_range(begin(), end());
@@ -278,7 +320,38 @@ auto vector<T>::resize(size_type size) -> void {
 }
 
 template <typename T>
-auto vector<T>::swap(vector<T> &other) -> void {
+void vector<T>::resize(size_type size, value_type const& value) {
+    if (size == __size) {
+        return;
+    }
+    
+    if (size > __size) {
+        if (size > __capacity) {
+            auto new_cap = __capacity * 2 > size ? __capacity * 2 : size;
+            auto dst = __allocate(new_cap);
+            
+            __move_construct_range(dst, begin(), end());
+            __construct_range(dst + __size, dst + size, value);
+            
+            __destruct_range(begin(), end());
+            __deallocate(begin());
+            
+            __arr = dst;
+            __capacity = new_cap;
+        }
+        else {
+            __construct_range(end(), begin() + size, value);
+        }
+    }
+    else {
+        __destruct_range(begin() + size, end());
+    }
+    
+    __size = size;
+}
+
+template <typename T>
+void vector<T>::swap(vector<T> &other) {
     auto temp_size = __size;
     auto temp_capacity = __capacity;
     auto temp_arr = __arr;
@@ -293,68 +366,98 @@ auto vector<T>::swap(vector<T> &other) -> void {
 }
 
 template <typename T>
-auto vector<T>::clear() -> void {
+void vector<T>::clear() {
     __size = 0;
     __destruct_range(begin(), end());
 }
 
 template <typename T>
-auto vector<T>::data() -> value_type* {
+auto vector<T>::data() -> pointer_type {
     return __arr;
 }
 
 template <typename T>
-auto vector<T>::data() const -> value_type const* {
+auto vector<T>::data() const -> const_pointer_type {
     return __arr;
 }
 
 template <typename T>
-auto vector<T>::empty() const noexcept -> bool {
+bool vector<T>::empty() const noexcept {
     return !__size;
 }
 
 template <typename T>
-auto vector<T>::size() const noexcept -> decltype(auto) {
+auto vector<T>::size() const noexcept -> size_type {
     return __size;
 }
 
 template <typename T>
-auto vector<T>::capacity() const noexcept -> decltype(auto) {
+auto vector<T>::capacity() const noexcept -> size_type {
     return __capacity;
 }
 
 template <typename T>
-auto vector<T>::begin() const -> decltype(auto) {
+auto vector<T>::begin() -> pointer_type {
     return __arr;
 }
 
 template <typename T>
-auto vector<T>::end() const -> decltype(auto) {
+auto vector<T>::end() -> pointer_type {
     return __arr + __size;
 }
 
 template <typename T>
-auto vector<T>::front() -> value_type& {
+auto vector<T>::front() -> reference_type {
     return *__arr;
 }
 
 template <typename T>
-auto vector<T>::back() -> value_type& {
+auto vector<T>::back() -> reference_type {
     return *(end() - 1);
 }
 
 template <typename T>
-auto vector<T>::at(size_type index) -> value_type& {
+auto vector<T>::at(size_type index) -> reference_type {
     return __arr[index];
 }
 
 template <typename T>
-auto vector<T>::operator[](size_type index) -> value_type& {
+auto vector<T>::begin() const -> const_pointer_type {
+    return __arr;
+}
+
+template <typename T>
+auto vector<T>::end() const -> const_pointer_type {
+    return __arr + __size;
+}
+
+template <typename T>
+auto vector<T>::front() const -> const_reference_type {
+    return *__arr;
+}
+
+template <typename T>
+auto vector<T>::back() const -> const_reference_type {
+    return *(end() - 1);
+}
+
+template <typename T>
+auto vector<T>::at(size_type index) const -> const_reference_type {
     return __arr[index];
 }
 
 template <typename T>
-auto vector<T>::operator=(const vector<T> &vec) -> decltype(auto) {
+auto vector<T>::operator[](size_type index) -> reference_type {
+    return __arr[index];
+}
+
+template <typename T>
+auto vector<T>::operator[](size_type index) const -> const_reference_type {
+    return __arr[index];
+}
+
+template <typename T>
+vector<T>& vector<T>::operator=(const vector<T> &vec) {
     auto dst = __allocate(vec.__capacity);
     
     __copy_range(dst, vec.begin(), vec.end());
@@ -367,7 +470,7 @@ auto vector<T>::operator=(const vector<T> &vec) -> decltype(auto) {
 }
 
 template <typename T>
-auto vector<T>::operator=(vector<T> &&vec) -> decltype(auto) {
+vector<T>& vector<T>::operator=(vector<T> &&vec) {
     __deallocate(__arr);
     
     __size     = vec.__size;
@@ -381,86 +484,88 @@ auto vector<T>::operator=(vector<T> &&vec) -> decltype(auto) {
 }
 
 template <typename T>
-auto vector<T>::__allocate(size_t capacity) -> pointer_type {
+auto vector<T>::__allocate(size_type capacity) -> pointer_type {
     return static_cast<value_type*>(::operator new(capacity * sizeof(value_type)));
 }
 
 template <typename T>
-auto vector<T>::__deallocate(value_type *const pos) -> void {
-    ::operator delete(static_cast<void *>(pos));
+void vector<T>::__deallocate(const_pointer_type pos) {
+    ::operator delete(const_cast<void*>(static_cast<const volatile void*>(pos)));
 }
 
 template <typename T>
-auto vector<T>::__construct(value_type *const pos) -> void {
-    ::new (static_cast<void*>(pos)) value_type();
+template <typename... Args>
+void vector<T>::__construct(const_pointer_type pos, Args&&... args) {
+    ::new (const_cast<void*>(static_cast<const volatile void*>(pos))) value_type(forward<Args>(args)...);
 }
 
 template <typename T>
-auto vector<T>::__construct(value_type *const pos, value_type const &value) -> void {
-    ::new (static_cast<void*>(pos)) value_type(value);
-}
-
-template <typename T>
-auto vector<T>::__construct(value_type *const pos, value_type &&value) -> void {
-    ::new (static_cast<void*>(pos)) value_type(static_cast<value_type &&>(value));
-}
-
-template <typename T>
-auto vector<T>::__construct_range(value_type *begin, value_type *end) -> void {
-    for (; begin != end; ++begin) {
-        __construct(begin);
+template <typename... Args>
+void vector<T>::__construct_range(const_pointer_type begin, const_pointer_type end, Args&&... args) {
+    for (pointer_type loc = const_cast<pointer_type>(begin); loc != end; ++loc) {
+        __construct(loc, forward<Args>(args)...);
     }
 }
 
 template <typename T>
-auto vector<T>::__construct_range(value_type *dst,
-                                  value_type *begin, value_type *end) -> void {
+void vector<T>::__copy_construct_range(const_pointer_type dst,
+                                       const_pointer_type begin, const_pointer_type end) {
+    for (pointer_type loc = const_cast<pointer_type>(begin); loc != end; ++loc) {
+        __construct(dst, static_cast<const value_type&>(*loc));
+    }
+}
+
+template <typename T>
+void vector<T>::__move_construct_range(const_pointer_type dst,
+                                       pointer_type begin, pointer_type end) {
     for (; begin != end; ++dst, ++begin) {
         __construct(dst, static_cast<value_type&&>(*begin));
     }
 }
 
 template <typename T>
-auto vector<T>::__construct_backward(value_type *dst,
-                                     value_type *rbegin, value_type *rend) -> void {
+void vector<T>::__move_construct_backward(const_pointer_type dst,
+                                          pointer_type rbegin, pointer_type rend) {
     for (; rbegin != rend; --dst, --rbegin) {
         __construct(dst, static_cast<value_type&&>(*rbegin));
     }
 }
 
 template <typename T>
-auto vector<T>::__destruct(value_type *pos) -> void {
+void vector<T>::__destruct(pointer_type pos) {
     pos->~value_type();
 }
 
 template <typename T>
-auto vector<T>::__destruct_range(value_type *begin, value_type *end) -> void {
+void vector<T>::__destruct_range(pointer_type begin, pointer_type end) {
     for (; begin != end; ++begin) {
-        __destruct(begin);
+        begin->~value_type();
     }
 }
 
 template <typename T>
-auto vector<T>::__copy_range(value_type *dst,
-                             value_type const *begin, value_type const *end) -> void {
+void vector<T>::__copy_range(pointer_type dst,
+                             const_pointer_type begin, const_pointer_type end) {
     for (; begin != end; ++dst, ++begin) {
         *dst = *begin;
     }
 }
 
 template <typename T>
-auto vector<T>::__move_range(value_type *dst,
-                             value_type *begin, value_type *end) -> void {
-    for (; begin != end; ++dst, ++begin) {
-        *dst = static_cast<value_type&&>(*begin);
+void vector<T>::__move_range(pointer_type dst,
+                             const_pointer_type begin, const_pointer_type end) {
+    pointer_type pos = __arr + (begin - this->begin());
+    for (; pos != end; ++dst, ++pos) {
+        *dst = static_cast<value_type&&>(*pos);
     }
 }
 
 template <typename T>
-auto vector<T>::__move_backward(value_type *dst,
-                                value_type *rbegin, value_type *rend) -> void {
-    for (; rbegin != rend; --dst, --rbegin) {
-        *dst = static_cast<value_type&&>(*rbegin);
+void vector<T>::__move_backward(pointer_type dst,
+                                const_pointer_type rbegin, const_pointer_type rend) {
+    pointer_type pos = __arr + (rbegin - this->begin());
+    for (; pos != rend; --dst, --pos) {
+        *dst = static_cast<value_type&&>(*pos);
     }
 }
 
