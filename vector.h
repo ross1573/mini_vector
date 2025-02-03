@@ -246,10 +246,14 @@ void vector<T>::insert(const_pointer_type pos,
         __capacity = new_cap;
     }
     else {
+        size_type size_diff = size_type(end - begin);
         pointer_type loc = this->begin() + (pos - this->begin());
         
-        __move_backward(this->begin() + new_size - 1, this->end() - 1, loc - 1);
-        __copy_construct_range(loc, begin, end);
+        __move_construct_backward(this->begin() + new_size - 1,
+                                  this->end() - 1, this->end() - size_diff - 1);
+        __move_backward(this->end() - 1, this->end() - size_diff - 1, loc - 1);
+        __destruct_range(loc, loc + (end - begin) - 1);
+        __copy_range(loc, begin, end);
     }
     
     __size = new_size;
